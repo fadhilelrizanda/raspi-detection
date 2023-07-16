@@ -10,6 +10,10 @@ from absl.flags import FLAGS
 from absl import app, flags, logging
 import tensorflow as tf
 import time
+from picamera2 import Picamera2
+import core.api as api
+
+
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 if len(physical_devices) > 0:
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
@@ -28,6 +32,7 @@ flags.DEFINE_integer('time', 10, 'time sleep in seconds')
 
 
 def main(_argv):
+    iter = 0
 
     config = ConfigProto()
     config.gpu_options.allow_growth = True
@@ -36,19 +41,38 @@ def main(_argv):
     input_size = FLAGS.size
     image_path = FLAGS.image
     cam_port = 0
+    picam2 = Picamera2()
+    picam2.preview_configuration.main.size = (1280,720)
+    picam2.preview_configuration.main.format ="RGB888"
+    picam2.preview_configuration.main.align()
+    picam2.configure("preview")
+    
 
     while True:
+        picam2.start()
         start_time = time.time()
-        cam = cv2.VideoCapture(0)
         while True:
-            result, image = cam.read()
-            if result:
-                if (time.time()-start_time > 10):
-                    original_image = image
-                    print("done", flush=True)
-                    break
-            else:
-                print("image error")
+            image = picam2.capture_array()
+            if(time.time()-start_time)>5:
+                print("taking photo",flush=True)
+                original_image = image
+                break
+
+
+
+
+
+        # start_time = time.time()
+        # cam = cv2.VideoCapture(0)
+        # while True:
+            # result, image = cam.read()
+            # if result:
+            #     if (time.time()-start_time > 10):
+            #         original_image = image
+            #         print("done", flush=True)
+            #         break
+            # else:
+            #     print("image error")
 
         # original_image = cv2.imread(image_path)
         original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
@@ -110,10 +134,15 @@ def main(_argv):
         image = Image.fromarray(image.astype(np.uint8))
         image.show()
         image = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
-        cv2.imwrite(FLAGS.output, image)
+        cv2.imwrite("./result_detection/result"+str(iter)+".png", image)
         print("next iter", flush=True)
-        cam.release()
+        # cam.release()
+        picam2.stop()
+        api.send_data(num_obj)
         time.sleep(FLAGS.time)
+        print("next iteration",flush=True)
+        iter +=1
+
 
 
 if __name__ == '__main__':
